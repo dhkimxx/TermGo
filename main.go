@@ -12,7 +12,20 @@ import (
 	"golang.org/x/crypto/ssh"
 )
 
-type SshInfo struct {
+type MsgType string
+
+const (
+	CONNECT    MsgType = "CONNECT"
+	COMMAND    MsgType = "COMMAND"
+	DISCONNECT MsgType = "DISCONNECT"
+)
+
+type WsMsg struct {
+	Type MsgType     `json:"type"`
+	Data interface{} `json:"data"`
+}
+
+type ConnectInfo struct {
 	Host     string `json:"host"`
 	Username string `json:"username"`
 	Password string `json:"password"`
@@ -30,6 +43,15 @@ func sshHandler(w http.ResponseWriter, r *http.Request) {
 	}
 	defer conn.Close()
 
+	var sshClient *ssh.Client
+
+	defer func() {
+		if sshClient != nil {
+			fmt.Println("sshConn.Close()")
+			sshClient.Close()
+		}
+	}()
+
 	for {
 		_, message, err := conn.ReadMessage()
 		if err != nil {
@@ -37,52 +59,93 @@ func sshHandler(w http.ResponseWriter, r *http.Request) {
 			break
 		}
 
-		var sshInfo SshInfo
-		err = json.Unmarshal(message, &sshInfo)
-
+		var wsMsg WsMsg
+		err = json.Unmarshal(message, &wsMsg)
 		if err != nil {
 			conn.WriteMessage(websocket.TextMessage, []byte("Invalid message format"))
+			log.Println("Unmarshal error:", err)
 			continue
 		}
 
-		result, err := connectSSH(&sshInfo)
-		if err != nil {
-			conn.WriteMessage(websocket.TextMessage, []byte(fmt.Sprintf("Error: %v", err)))
-		} else {
-			conn.WriteMessage(websocket.TextMessage, []byte(result))
+		switch wsMsg.Type {
+		case CONNECT:
+			if sshClient != nil {
+				conn.WriteMessage(websocket.TextMessage, []byte("Connection is already existing"))
+				continue
+			}
+
+			connectInfoMap, ok := wsMsg.Data.(map[string]interface{})
+			if !ok {
+				conn.WriteMessage(websocket.TextMessage, []byte("Invalid connection information format"))
+				continue
+			}
+
+			connectInfo := ConnectInfo{
+				Host:     connectInfoMap["host"].(string),
+				Username: connectInfoMap["username"].(string),
+				Password: connectInfoMap["password"].(string),
+			}
+
+			sshClient, err = connectSSH(&connectInfo)
+			if err != nil {
+				conn.WriteMessage(websocket.TextMessage, []byte(fmt.Sprintf("Connection error: %v", err)))
+				continue
+			}
+			conn.WriteMessage(websocket.TextMessage, []byte("Connected to SSH server"))
+
+		case COMMAND:
+			if sshClient == nil {
+				conn.WriteMessage(websocket.TextMessage, []byte("SSH client is not connected"))
+				continue
+			}
+
+			command, ok := wsMsg.Data.(string)
+			if !ok {
+				conn.WriteMessage(websocket.TextMessage, []byte("Invalid command format"))
+				continue
+			}
+
+			result, err := runCommand(sshClient, command)
+			if err != nil {
+				conn.WriteMessage(websocket.TextMessage, []byte(fmt.Sprintf("Command error: %v", err)))
+			} else {
+				conn.WriteMessage(websocket.TextMessage, []byte(result))
+			}
 		}
 	}
 }
 
-func connectSSH(sshInfo *SshInfo) (string, error) {
+func connectSSH(connectInfo *ConnectInfo) (*ssh.Client, error) {
 	config := &ssh.ClientConfig{
-		User: sshInfo.Username,
+		User: connectInfo.Username,
 		Auth: []ssh.AuthMethod{
-			ssh.Password(sshInfo.Password),
+			ssh.Password(connectInfo.Password),
 		},
 		HostKeyCallback: ssh.InsecureIgnoreHostKey(),
 		Timeout:         5 * time.Second,
 	}
 
-	conn, err := ssh.Dial("tcp", sshInfo.Host, config)
+	client, err := ssh.Dial("tcp", connectInfo.Host, config)
 	if err != nil {
-		return "", fmt.Errorf("failed to connect: %w", err)
+		return nil, fmt.Errorf("failed to connect: %w", err)
 	}
-	defer conn.Close()
 
-	session, err := conn.NewSession()
+	return client, nil
+}
+
+func runCommand(client *ssh.Client, command string) (string, error) {
+	session, err := client.NewSession()
 	if err != nil {
-		return "", fmt.Errorf("failed to create session: %w", err)
+		return "", err
 	}
 	defer session.Close()
 
 	var b bytes.Buffer
 	session.Stdout = &b
-	if err := session.Run("ls -a"); err != nil {
-		return "", fmt.Errorf("failed to run command: %w", err)
-	}
 
-	fmt.Printf("Return: %s", b.String())
+	if err := session.Run(command); err != nil {
+		return "", err
+	}
 
 	return b.String(), nil
 }
