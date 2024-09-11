@@ -4,28 +4,45 @@ body {
     justify-content: center;
     align-items: center;
     height: 100vh;
-    background-color: #f0f0f0;
+    background-color: #1e1e1e;
+    color: #f0f0f0;
 }
 
 .container {
     text-align: center;
-    background: #fff;
+    background: #282c34;
     padding: 20px;
     border-radius: 8px;
-    box-shadow: 0 4px 10px rgba(0, 0, 0, 0.1);
+    box-shadow: 0 4px 10px rgba(0, 0, 0, 0.2);
 }
 
-input, button {
-    margin: 10px 0;
-    padding: 10px;
+.terminal {
+    display: flex;
+    flex-direction: column;
     width: 80%;
+    height: 60%;
+    border: 1px solid #444;
+    border-radius: 8px;
+    padding: 10px;
+    background: #1e1e1e;
 }
 
 #output {
-    text-align: left;
-    background: #333;
+    flex-grow: 1;
+    background: #1e1e1e;
     color: #0f0;
     padding: 10px;
-    height: 200px;
-    overflow: auto;
+    overflow-y: auto;
+}
+
+#command {
+    border: none;
+    padding: 8px;
+    font-size: 14px;
+    background: #333;
+    color: #0f0;
+}
+
+.hidden {
+    display: none;
 }

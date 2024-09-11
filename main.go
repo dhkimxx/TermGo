@@ -86,6 +86,8 @@ func sshHandler(w http.ResponseWriter, r *http.Request) {
 				Password: connectInfoMap["password"].(string),
 			}
 
+			fmt.Println(connectInfo)
+
 			sshClient, err = connectSSH(&connectInfo)
 			if err != nil {
 				conn.WriteMessage(websocket.TextMessage, []byte(fmt.Sprintf("Connection error: %v", err)))

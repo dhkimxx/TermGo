@@ -7,16 +7,19 @@
     <link rel="stylesheet" href="style.css">
 </head>
 <body>
-    <div class="container">
+    <div id="connection-container" class="container">
         <h1>TermGo - SSH Client</h1>
         <input id="host" type="text" placeholder="Host (e.g., 192.168.1.1:22)">
         <input id="username" type="text" placeholder="Username">
         <input id="password" type="password" placeholder="Password">
         <button id="connect">Connect</button>
-        <input id="command" type="text" placeholder="Enter command">
-        <button id="send-command">Send Command</button>
-        <pre id="output"></pre>
     </div>
+
+    <div id="terminal-container" class="terminal hidden">
+        <pre id="output"></pre>
+        <input id="command" type="text" placeholder="Enter command">
+    </div>
+
     <script src="app.js"></script>
 </body>
 </html>
